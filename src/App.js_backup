@@ -1,45 +1,43 @@
 import React, { Component } from 'react';
 import Web3 from 'web3'
 import './App.css';
-import Color from './Color.json'
+import Color from '../abis/Color.json'
 
 class App extends Component {
 
   async componentWillMount() {
+    await this.loadWeb3()
     await this.loadBlockchainData()
   }
 
+  async loadWeb3() {
+    if (window.ethereum) {
+      window.web3 = new Web3(window.ethereum)
+      await window.ethereum.enable()
+    }
+    else if (window.web3) {
+      window.web3 = new Web3(window.web3.currentProvider)
+    }
+    else {
+      window.alert('Non-Ethereum browser detected. You should consider trying MetaMask!')
+    }
+  }
 
   async loadBlockchainData() {
-//    const web3 = window.web3
-
-	//const wb3 = new Web3(Web3.givenProvider || "http://ec2... does not work")
-     const web3 = new Web3( "http://ec2-35-80-15-111.us-west-2.compute.amazonaws.com:8545")	
-     const networkId = await web3.eth.net.getId();
-     const network = await web3.eth.net.getNetworkType()
-     console.log( "network:", network)
-     const accounts = await web3.eth.getAccounts()
-     console.log("account", accounts[0])
-     this.setState({ account: accounts[1] })	
-     var config  = require('./Color.json');   // put a copy in /src directory.....
-     let jsonData = require('./Color.json');
-     var networkKey =  Object.keys(jsonData['networks'])[Object.keys(jsonData.networks).length-1] 
-     const contract = new web3.eth.Contract(jsonData.abi);
-
-     contract.options.address = jsonData['networks'][networkId]["address"]
-	//let ans = await contract.methods.createTask("junk").send({ from: accounts[0] })i.once('receipt', (receipt) => { this.setState({ loading: false })})
-
-     this.setState({ contract }) 
-
-
-	  // Load account
-    //const accounts = await web3.eth.getAccounts()
+    const web3 = window.web3
+    // Load account
+    const accounts = await web3.eth.getAccounts()
     this.setState({ account: accounts[0] })
 
-    //const networkId = await web3.eth.net.getId()
+    const networkId = await web3.eth.net.getId()
     const networkData = Color.networks[networkId]
-    const totalSupply = await contract.methods.totalSupply().call()
-    this.setState({ totalSupply })
+    if(networkData) {
+      const abi = Color.abi
+      const address = networkData.address
+      const contract = new web3.eth.Contract(abi, address)
+      this.setState({ contract })
+      const totalSupply = await contract.methods.totalSupply().call()
+      this.setState({ totalSupply })
       // Load Colors
       for (var i = 1; i <= totalSupply; i++) {
         const color = await contract.methods.colors(i - 1).call()
@@ -47,10 +45,13 @@ class App extends Component {
           colors: [...this.state.colors, color]
         })
       }
+    } else {
+      window.alert('Smart contract not deployed to detected network.')
+    }
   }
 
   mint = (color) => {
-    this.state.contract.methods.mint(color).send({ from: this.state.account, gas: 3000000 })
+    this.state.contract.methods.mint(color).send({ from: this.state.account })
     .once('receipt', (receipt) => {
       this.setState({
         colors: [...this.state.colors, color]
